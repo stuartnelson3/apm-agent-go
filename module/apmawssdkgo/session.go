@@ -18,6 +18,8 @@
 package apmawssdkgo // import "go.elastic.co/apm/module/apmawssdkgo"
 
 import (
+	"fmt"
+
 	"go.elastic.co/apm"
 	"go.elastic.co/apm/module/apmhttp"
 	"go.elastic.co/apm/stacktrace"
@@ -51,12 +53,14 @@ func WrapSession(s *session.Session) *session.Session {
 const (
 	serviceS3       = "s3"
 	serviceDynamoDB = "dynamodb"
+	serviceSQS      = "sqs"
 )
 
 var (
 	serviceTypeMap = map[string]string{
 		serviceS3:       "storage",
 		serviceDynamoDB: "dynamodb",
+		serviceSQS:      "messaging",
 	}
 )
 
@@ -96,6 +100,8 @@ func send(req *request.Request) {
 		if err != nil {
 			return
 		}
+	case serviceSQS:
+		svc = newSQS(req)
 	default:
 		// Unsupported type
 		return
@@ -113,6 +119,7 @@ func send(req *request.Request) {
 	}
 
 	span.Subtype = spanSubtype
+	fmt.Println("sqs.action", req.Operation.Name)
 	span.Action = req.Operation.Name
 
 	span.Context.SetDestinationService(apm.DestinationServiceSpanContext{
