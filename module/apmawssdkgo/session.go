@@ -59,7 +59,7 @@ const (
 var (
 	serviceTypeMap = map[string]string{
 		serviceS3:       "storage",
-		serviceDynamoDB: "dynamodb",
+		serviceDynamoDB: "db",
 		serviceSQS:      "messaging",
 	}
 )
@@ -81,11 +81,7 @@ func send(req *request.Request) {
 		return
 	}
 
-	var (
-		err error
-		ctx = req.Context()
-	)
-
+	ctx := req.Context()
 	tx := apm.TransactionFromContext(ctx)
 	if tx == nil {
 		return
@@ -96,10 +92,7 @@ func send(req *request.Request) {
 	case serviceS3:
 		svc = newS3(req)
 	case serviceDynamoDB:
-		svc, err = newDynamoDB(req)
-		if err != nil {
-			return
-		}
+		svc = newDynamoDB(req)
 	case serviceSQS:
 		svc = newSQS(req)
 	default:

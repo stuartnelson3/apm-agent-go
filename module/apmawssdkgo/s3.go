@@ -35,9 +35,13 @@ func newS3(req *request.Request) *s3 {
 	return &s3{name: name, bucketName: bucketName}
 }
 
-func (s *s3) spanName() string { return s.name }
+func (s *s3) spanName() string {
+	return s.name
+}
 
-func (s *s3) resource() string { return s.bucketName }
+func (s *s3) resource() string {
+	return s.bucketName
+}
 
 func (s *s3) setAdditional(*apm.Span) {}
 
