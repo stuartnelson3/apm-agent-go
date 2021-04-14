@@ -18,8 +18,6 @@
 package apmawssdkgo // import "go.elastic.co/apm/module/apmawssdkgo"
 
 import (
-	"fmt"
-
 	"go.elastic.co/apm"
 	"go.elastic.co/apm/module/apmhttp"
 	"go.elastic.co/apm/stacktrace"
@@ -87,14 +85,20 @@ func send(req *request.Request) {
 		return
 	}
 
-	var svc service
+	var (
+		svc service
+		err error
+	)
 	switch spanSubtype {
 	case serviceS3:
 		svc = newS3(req)
 	case serviceDynamoDB:
 		svc = newDynamoDB(req)
 	case serviceSQS:
-		svc = newSQS(req)
+		if svc, err = newSQS(req); err != nil {
+			// Unsupported method type or queue name.
+			return
+		}
 	default:
 		// Unsupported type
 		return
@@ -112,7 +116,6 @@ func send(req *request.Request) {
 	}
 
 	span.Subtype = spanSubtype
-	fmt.Println("sqs.action", req.Operation.Name)
 	span.Action = req.Operation.Name
 
 	span.Context.SetDestinationService(apm.DestinationServiceSpanContext{

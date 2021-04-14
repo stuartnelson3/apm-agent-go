@@ -18,46 +18,69 @@
 package apmawssdkgo // import "go.elastic.co/apm/module/apmawssdkgo"
 
 import (
-	"fmt"
+	"errors"
+	"strings"
 
 	"github.com/aws/aws-sdk-go/aws/request"
 	"go.elastic.co/apm"
 )
 
-var operationToNames = map[string]string{
-	// TODO: Get the actual key names
-	deleteMessage:      "delete",
-	deleteMessageBatch: "delete_batch",
-	receiveMessage:     "poll",
-	sendMessageBatch:   "send_batch",
-	sendMessage:        "send",
-	unknown:            "unknown",
+var (
+	sqsErrMethodNotSupported = errors.New("method not supported")
+	operationName            = map[string]string{
+		"SendMessage":        "send",
+		"SendMessageBatch":   "send_batch",
+		"DeleteMessage":      "delete",
+		"DeleteMessageBatch": "delete_batch",
+		"ReceiveMessage":     "poll",
+	}
+)
+
+type apmSQS struct {
+	name, opName, resourceName string
 }
 
-type sqs struct {
-	name string
+func newSQS(req *request.Request) (*apmSQS, error) {
+	opName, ok := operationName[req.Operation.Name]
+	if !ok {
+		return nil, sqsErrMethodNotSupported
+	}
+	name := req.ClientInfo.ServiceID + " " + strings.ToUpper(opName)
+	resourceName := serviceSQS
+
+	queueName := getQueueName(req)
+	if queueName != "" {
+		name += " " + operationDirection(req.Operation.Name) + " " + queueName
+		resourceName += "/" + queueName
+	}
+
+	s := &apmSQS{
+		name:         name,
+		opName:       opName,
+		resourceName: resourceName,
+	}
+
+	return s, nil
 }
 
-// <MSG-FRAMEWORK> SEND/RECEIVE/POLL to/from <QUEUE-NAME>
+func (s *apmSQS) spanName() string { return s.name }
 
-func newSQS(req *request.Request) *sqs {
-	queueName := "find me!"
-	operationName := operationsToNames[req.Operation.Name]
-	resource := req.ClientInfo.ServiceName + "/" + queueName
-	name := fmt.Sprintf("%s %s %s %s",
-		req.ClientInfo.ServiceID,
-		req.Operation.Name,
-		operationDirection(operationName),
-		queueName,
-	)
+func (s *apmSQS) resource() string { return s.resourceName }
 
-	return &sqs{}
+func (s *apmSQS) setAdditional(span *apm.Span) {
+	span.Action = s.opName
 }
 
-func (s *sqs) name() string { return s.name }
+func operationDirection(operationName string) string {
+	switch operationName {
+	case "SendMessage", "SendMessageBatch":
+		return "to"
+	default:
+		return "from"
+	}
+}
 
-func (s *sqs) resource() string { return "" }
-
-func (s *sqs) setAdditional(*apm.Span) {}
-
-// func operationDirection(operationName
+func getQueueName(req *request.Request) string {
+	parts := strings.Split(req.HTTPRequest.FormValue("QueueUrl"), "/")
+	return parts[len(parts)-1]
+}
